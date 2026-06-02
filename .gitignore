@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+
+# 登录缓存（含微信会话，绝不能上传！）
+itchat.pkl
+*.pkl
+
+# 聊天数据（含个人隐私，绝不能上传！）
+texts/
+images/
+videos/
+voices/
+emojis/
+*.xlsx
+*.xls
+
+# 分析脚本和中间结果（仅供本地使用）
+*_analysis.txt
+*_analyze.py
+deep_analyze.py
+full_analyze.py
+knowledge_extract.py
+knowledge_extract.txt
+analyze_*.py
+temp_*.py
+result*.txt
+sample.txt
+new_analysis.txt
+persona_analysis.txt
+
+# 二维码图片（本地临时文件）
+QR.png
+
+# 其他临时文件
+*.log
+.DS_Store
