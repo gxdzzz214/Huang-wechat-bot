@@ -1,8 +1,3 @@
-# 黄邦亮 (Petezz) 微信机器人 —— 依赖清单（网页版免客户端版）
-# 安装命令：pip install -r requirements.txt
-
-# itchat-uos：基于网页版微信 UOS 协议的轻量级脱机方案
-itchat-uos==1.5.0.dev0
-
-# Google Gemini Python SDK (新版)
+flask>=3.0.0
 google-genai>=0.1.0
+gunicorn>=21.0.0

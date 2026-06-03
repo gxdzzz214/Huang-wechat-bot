@@ -1,50 +1,19 @@
 # =============================================================================
-# config.py —— 黄邦亮人设机器人核心配置文件
-# 所有需要用户手动修改的参数，都集中在这里
+# config.py —— 公众号版配置文件
+# 把下面的占位符替换成你自己的真实值
 # =============================================================================
 
-# ----------------------------- API 配置 -----------------------------------
-# 你的 Google Gemini API Key
-# 获取地址: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY = "YOUR_API_KEY_HERE"
+# ---- 微信公众号配置 ----
+# 在公众号后台「开发 → 基本配置」中自己填写的 Token（随便取，比如 mybot123）
+WECHAT_TOKEN = "YOUR_WECHAT_TOKEN_HERE"
 
-# 使用的 Gemini 模型版本
-# 可选: "gemini-3.5-flash"（快速省钱）或 "gemini-3.5-pro"（最强效果）
-GEMINI_MODEL = "gemini-3.5-flash"
+# ---- Gemini API 配置 ----
+# 申请地址: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
 
-# ----------------------------- 消息过滤配置 -----------------------------------
-# 机器人响应模式，两种模式二选一：
-#   "whitelist_friends" : 只响应 ALLOWED_FRIEND_WXIDS 列表中的好友私聊
-#   "whitelist_rooms"   : 只响应 ALLOWED_ROOM_IDS 列表中的群聊 (当前暂不启用)
-RESPONSE_MODE = "whitelist_friends"
+# 模型版本: gemini-2.5-flash（速度快）或 gemini-2.5-pro（效果好）
+GEMINI_MODEL = "gemini-2.5-flash"
 
-# 允许触发机器人的好友昵称或备注名白名单
-# 注意：itchat 每次登录的 UserName 是随机的，必须用真实的微信号昵称或你给他备注的名字
-ALLOWED_FRIEND_NAMES = [
-    "好友的微信昵称或备注1",
-    "好友的微信昵称或备注2",
-    "文件传输助手",
-]
-
-# （可选）允许触发机器人的群聊 room_id 白名单（目前以私聊为主，暂时留空）
-ALLOWED_ROOM_IDS = []
-
-# ----------------------------- 对话上下文配置 ---------------------------------
-# 每个用户保留的最大历史消息条数（超过后自动丢弃最早的，防止 token 超限）
-# 注意：这是 messages 列表的总条数，user + assistant 各算一条
+# ---- 对话上下文配置 ----
+# 每个用户保留的最大历史消息条数
 MAX_HISTORY_MESSAGES = 20
-
-# ----------------------------- 发送行为配置 -----------------------------------
-# 分段发送时，每条消息之间的基础等待秒数（调低以提升回复速度）
-SEND_INTERVAL_BASE = 0.5
-
-# 发送间隔的随机浮动范围（秒），让节奏更像真人，不要太机械
-# 实际间隔 = SEND_INTERVAL_BASE + random.uniform(-JITTER, +JITTER)
-SEND_INTERVAL_JITTER = 0.2
-
-# 每个分段消息的最大字符数（超过此长度会强制断开）
-MAX_CHUNK_LENGTH = 40
-
-# ----------------------------- 调试配置 -----------------------------------
-# 是否打印详细调试日志（True=打印, False=只打印关键信息）
-DEBUG_MODE = True
