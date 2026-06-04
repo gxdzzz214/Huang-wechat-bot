@@ -53,9 +53,8 @@ def ask_gemini(openid: str, user_message: str) -> str:
             model=GEMINI_MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=PETEZZ_SYSTEM_PROMPT + WECHAT_OFFICIAL_ADDON,
-                max_output_tokens=1024,
+                max_output_tokens=512,
                 temperature=0.8,
-                tools=[types.Tool(google_search=types.GoogleSearch())],
                 safety_settings=[
                     types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
                     types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
@@ -67,7 +66,6 @@ def ask_gemini(openid: str, user_message: str) -> str:
         )
         response = chat.send_message(user_message)
         reply = response.text.strip() if response.text else "这我不懂欸"
-        # 把 ||| 替换成换行
         reply = reply.replace(" ||| ", "\n").replace("|||", "\n")
         add_message(openid, "model", reply)
         return reply
@@ -75,3 +73,4 @@ def ask_gemini(openid: str, user_message: str) -> str:
     except Exception as e:
         logger.error(f"Gemini API 调用失败: {e}")
         return "这我不懂欸"
+
