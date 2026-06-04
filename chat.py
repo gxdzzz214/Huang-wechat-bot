@@ -43,12 +43,12 @@ def ask_gemini(openid: str, user_message: str) -> str:
                 max_output_tokens=512,
                 temperature=0.8,
             ),
-            safety_settings={
-                "HARASSMENT": "BLOCK_NONE",
-                "HATE_SPEECH": "BLOCK_NONE",
-                "SEXUALLY_EXPLICIT": "BLOCK_NONE",
-                "DANGEROUS_CONTENT": "BLOCK_NONE",
-            }
+            safety_settings=[
+                {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
         )
 
         # 构建历史，排除最后一条（当前用户消息）
