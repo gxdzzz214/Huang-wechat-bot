@@ -10,7 +10,7 @@ WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "YOUR_WECHAT_TOKEN_HERE")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 
 # 模型版本
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 # ---- 对话上下文配置 ----
 MAX_HISTORY_MESSAGES = 20
