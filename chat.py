@@ -1,8 +1,7 @@
 # =============================================================================
-# chat.py —— Gemini API 调用模块（公众号版）
+# chat.py —— Gemini API 调用模块（公众号版，含联网搜索）
 # =============================================================================
 from collections import defaultdict
-from typing import Optional
 import logging
 
 from google import genai
@@ -11,23 +10,22 @@ from google.genai import types
 from config import GEMINI_API_KEY, GEMINI_MODEL, MAX_HISTORY_MESSAGES
 from persona import PETEZZ_SYSTEM_PROMPT
 
-# 公众号版附加指令：禁用多段分隔，只输出单条消息
-WECHAT_OFFICIAL_ADDON = """
-
-【公众号模式专属规则】
-你现在运行在微信公众号环境中，平台限制每次只能发送一条消息。
-- 绝对禁止使用 ||| 分隔符
-- 无论想说几句话，必须合并成一条消息发出
-- 可以用空格或省略来自然连接（例如："对啊 不知道啊"）
-- 保持原有的简短风格，绝对不要因为合并就变长
-"""
-
 logger = logging.getLogger("WechatBot")
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # 每个用户独立的对话历史（key = openid）
 conversation_history: dict[str, list] = defaultdict(list)
+
+# 公众号版附加规则：换行代替 |||，可联网查询
+WECHAT_OFFICIAL_ADDON = """
+
+【公众号模式专属规则】
+- 禁止使用 ||| 分隔符，改用换行符分隔多句话
+- 如果用户询问的问题需要查询实时信息（如价格、新闻、比赛结果、天气等），你可以联网搜索后给出准确回答
+- 联网查到的内容用你自己的口吻简短复述，不要粘贴原文
+- 保持原有的简短风格，不要因为有搜索能力就变得啰嗦
+"""
 
 
 def add_message(openid: str, role: str, content: str):
@@ -57,6 +55,7 @@ def ask_gemini(openid: str, user_message: str) -> str:
                 system_instruction=PETEZZ_SYSTEM_PROMPT + WECHAT_OFFICIAL_ADDON,
                 max_output_tokens=1024,
                 temperature=0.8,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
                 safety_settings=[
                     types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
                     types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
@@ -68,6 +67,8 @@ def ask_gemini(openid: str, user_message: str) -> str:
         )
         response = chat.send_message(user_message)
         reply = response.text.strip() if response.text else "这我不懂欸"
+        # 把 ||| 替换成换行
+        reply = reply.replace(" ||| ", "\n").replace("|||", "\n")
         add_message(openid, "model", reply)
         return reply
 
