@@ -1,17 +1,14 @@
 # =============================================================================
-# app.py —— 微信公众号 Webhook 服务（异步版：解决5秒超时问题）
+# app.py —— 微信公众号 Webhook 服务（同步被动回复版）
 # =============================================================================
 import hashlib
 import xml.etree.ElementTree as ET
 import time
 import logging
-import threading
-import requests as http_requests
-import json
 
 from flask import Flask, request, abort
 
-from config import WECHAT_TOKEN, WECHAT_APPID, WECHAT_APPSECRET
+from config import WECHAT_TOKEN
 from chat import ask_gemini
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -19,63 +16,23 @@ logger = logging.getLogger("WechatBot")
 
 app = Flask(__name__)
 
-# ---- 微信 Access Token 管理 ----
-_access_token = None
-_token_expire_at = 0
-_token_lock = threading.Lock()
-
-
-def get_access_token():
-    global _access_token, _token_expire_at
-    with _token_lock:
-        if _access_token and time.time() < _token_expire_at - 60:
-            return _access_token
-        url = "https://api.weixin.qq.com/cgi-bin/stable_token"
-        payload = {
-            "grant_type": "client_credential",
-            "appid": WECHAT_APPID,
-            "secret": WECHAT_APPSECRET
-        }
-        resp = http_requests.post(url, json=payload, timeout=10).json()
-        if "access_token" not in resp:
-            logger.error(f"获取 Access Token 失败: {resp}")
-            return None
-        _access_token = resp["access_token"]
-        _token_expire_at = time.time() + resp.get("expires_in", 7200)
-        logger.info("Access Token 已刷新")
-        return _access_token
-
-
-
-def send_customer_service_msg(openid: str, content: str):
-    """通过客服消息接口主动推送消息（异步调用，绕过5秒限制）"""
-    try:
-        token = get_access_token()
-        url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={token}"
-        payload = {
-            "touser": openid,
-            "msgtype": "text",
-            "text": {"content": content}
-        }
-        resp = http_requests.post(url, json=payload, timeout=10).json()
-        if resp.get("errcode", 0) != 0:
-            logger.error(f"客服消息发送失败: {resp}")
-        else:
-            logger.info(f"客服消息发送成功 -> {openid}")
-    except Exception as e:
-        logger.error(f"客服消息发送异常: {e}")
-
-
-def process_and_reply(openid: str, content: str):
-    """后台线程：调用 Gemini 并通过客服接口推送回复"""
-    reply = ask_gemini(openid, content)
-    send_customer_service_msg(openid, reply)
-
 
 def verify_signature(token, signature, timestamp, nonce):
     tmp = sorted([token, timestamp, nonce])
     tmp_str = "".join(tmp).encode("utf-8")
     return hashlib.sha1(tmp_str).hexdigest() == signature
+
+
+def make_reply(to_user, from_user, content):
+    return (
+        f"<xml>"
+        f"<ToUserName><![CDATA[{to_user}]]></ToUserName>"
+        f"<FromUserName><![CDATA[{from_user}]]></FromUserName>"
+        f"<CreateTime>{int(time.time())}</CreateTime>"
+        f"<MsgType><![CDATA[text]]></MsgType>"
+        f"<Content><![CDATA[{content}]]></Content>"
+        f"</xml>"
+    )
 
 
 @app.route("/wechat", methods=["GET", "POST"])
@@ -93,21 +50,20 @@ def wechat():
         return echostr
 
     try:
-        xml_data  = ET.fromstring(request.data)
-        msg_type  = xml_data.findtext("MsgType", "")
-        from_user = xml_data.findtext("FromUserName", "")
-        content   = xml_data.findtext("Content", "").strip()
+        xml_data   = ET.fromstring(request.data)
+        msg_type   = xml_data.findtext("MsgType", "")
+        from_user  = xml_data.findtext("FromUserName", "")
+        to_user    = xml_data.findtext("ToUserName", "")
+        content    = xml_data.findtext("Content", "").strip()
 
         if msg_type != "text" or not content:
             return "success"
 
         logger.info(f"收到消息 from {from_user}: {content}")
+        reply = ask_gemini(from_user, content)
+        logger.info(f"回复: {reply}")
 
-        # 立刻返回 "success"（微信收到后不会再等待），后台线程处理
-        t = threading.Thread(target=process_and_reply, args=(from_user, content), daemon=True)
-        t.start()
-
-        return "success"
+        return make_reply(from_user, to_user, reply), 200, {"Content-Type": "application/xml"}
 
     except Exception as e:
         logger.error(f"消息处理异常: {e}")
