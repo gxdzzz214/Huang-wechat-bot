@@ -1,8 +1,10 @@
 # =============================================================================
-# chat.py —— Gemini API 调用模块（公众号版，含 Google 联网搜索）
+# chat.py —— Gemini API 调用模块（公众号版，含 Google 联网搜索 + 结果缓存）
 # =============================================================================
 from collections import defaultdict
 import concurrent.futures
+import threading
+import time
 import logging
 
 from google import genai
@@ -16,8 +18,13 @@ logger = logging.getLogger("WechatBot")
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # 每个用户独立的对话历史（key = openid）
-# 格式: [{"role": "user"|"model", "text": str}, ...]
 conversation_history: dict[str, list] = defaultdict(list)
+
+# 搜索结果缓存：openid → {"result": str, "ts": float}
+# 当搜索超时时，后台线程继续运行并把结果存进来，用户再问一次就能拿到
+_pending_cache: dict[str, dict] = {}
+_cache_lock = threading.Lock()
+CACHE_TTL = 300  # 结果保留 5 分钟
 
 WECHAT_OFFICIAL_ADDON = """
 
@@ -57,7 +64,6 @@ def add_message(openid: str, role: str, text: str):
 
 
 def _build_contents(openid: str, user_message: str) -> list:
-    """把历史记录 + 当前消息转换成 Gemini Content 列表"""
     history = conversation_history[openid]
     contents = []
     for msg in history:
@@ -67,7 +73,6 @@ def _build_contents(openid: str, user_message: str) -> list:
                 parts=[types.Part(text=msg["text"])],
             )
         )
-    # 追加当前用户消息
     contents.append(
         types.Content(
             role="user",
@@ -78,7 +83,6 @@ def _build_contents(openid: str, user_message: str) -> list:
 
 
 def _call_gemini(contents: list) -> str:
-    """直接调用 generate_content（带 Google Search grounding，单次 HTTP 请求）"""
     response = gemini_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=contents,
@@ -93,24 +97,62 @@ def _call_gemini(contents: list) -> str:
     return response.text.strip() if response.text else "这我不懂欸"
 
 
+def _background_search(openid: str, user_message: str, contents: list):
+    """超时后后台继续搜索，完成后写入缓存"""
+    try:
+        reply = _call_gemini(contents)
+        reply = reply.replace(" ||| ", "\n").replace("|||", "\n")
+        with _cache_lock:
+            _pending_cache[openid] = {"result": reply, "ts": time.time()}
+        # 同时写入对话历史，下次对话有上下文
+        add_message(openid, "user", user_message)
+        add_message(openid, "model", reply)
+        logger.info(f"后台搜索完成 [{openid}]: {reply}")
+    except Exception as e:
+        logger.error(f"后台搜索失败: {e}")
+
+
+def _pop_cache(openid: str) -> str | None:
+    """取出缓存结果（取一次即删除，过期也删除）"""
+    with _cache_lock:
+        entry = _pending_cache.get(openid)
+        if entry:
+            del _pending_cache[openid]
+            if time.time() - entry["ts"] < CACHE_TTL:
+                return entry["result"]
+    return None
+
+
 def ask_gemini(openid: str, user_message: str, timeout: float = 4.5) -> str:
+    # ① 优先检查有没有上一次搜索的缓存结果
+    cached = _pop_cache(openid)
+    if cached:
+        logger.info(f"命中缓存 [{openid}]: {cached}")
+        return cached
+
     contents = _build_contents(openid, user_message)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_call_gemini, contents)
         try:
             reply = future.result(timeout=timeout)
+            reply = reply.replace(" ||| ", "\n").replace("|||", "\n")
+            add_message(openid, "user", user_message)
+            add_message(openid, "model", reply)
+            logger.info(f"回复: {reply}")
+            return reply
+
         except concurrent.futures.TimeoutError:
-            logger.warning(f"Gemini 超时 (>{timeout}s)，返回提示")
-            return "在查呢，你再问一遍"
+            # ② 超时：后台继续搜索，结果存入缓存，告诉用户再问一遍
+            logger.warning(f"Gemini 超时 (>{timeout}s)，启动后台搜索")
+            t = threading.Thread(
+                target=_background_search,
+                args=(openid, user_message, contents),
+                daemon=True,
+            )
+            t.start()
+            return "搜索中，稍等一下再问一遍呗"
+
         except Exception as e:
             logger.error(f"Gemini API 调用失败: {e}")
             return "这我不懂欸"
-
-    reply = reply.replace(" ||| ", "\n").replace("|||", "\n")
-
-    # 成功后才写入历史
-    add_message(openid, "user", user_message)
-    add_message(openid, "model", reply)
-    logger.info(f"回复: {reply}")
-    return reply
