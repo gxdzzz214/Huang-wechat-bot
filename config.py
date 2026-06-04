@@ -1,9 +1,9 @@
 import os
 
 # ---- 微信公众号配置 ----
-# 在公众号后台「开发 → 基本配置」中自己填写的 Token
-# 生产环境从 Render 环境变量读取，本地调试可改为默认值
-WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "YOUR_WECHAT_TOKEN_HERE")
+WECHAT_TOKEN     = os.environ.get("WECHAT_TOKEN",     "YOUR_WECHAT_TOKEN_HERE")
+WECHAT_APPID     = os.environ.get("WECHAT_APPID",     "YOUR_APPID_HERE")
+WECHAT_APPSECRET = os.environ.get("WECHAT_APPSECRET", "YOUR_APPSECRET_HERE")
 
 # ---- Gemini API 配置 ----
 # 申请地址: https://aistudio.google.com/app/apikey
