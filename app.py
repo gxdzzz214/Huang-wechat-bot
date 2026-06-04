@@ -30,17 +30,21 @@ def get_access_token():
     with _token_lock:
         if _access_token and time.time() < _token_expire_at - 60:
             return _access_token
-        url = (
-            f"https://api.weixin.qq.com/cgi-bin/token"
-            f"?grant_type=client_credential"
-            f"&appid={WECHAT_APPID}"
-            f"&secret={WECHAT_APPSECRET}"
-        )
-        resp = http_requests.get(url, timeout=10).json()
-        _access_token = resp.get("access_token")
+        url = "https://api.weixin.qq.com/cgi-bin/stable_token"
+        payload = {
+            "grant_type": "client_credential",
+            "appid": WECHAT_APPID,
+            "secret": WECHAT_APPSECRET
+        }
+        resp = http_requests.post(url, json=payload, timeout=10).json()
+        if "access_token" not in resp:
+            logger.error(f"获取 Access Token 失败: {resp}")
+            return None
+        _access_token = resp["access_token"]
         _token_expire_at = time.time() + resp.get("expires_in", 7200)
-        logger.info(f"Access Token 已刷新")
+        logger.info("Access Token 已刷新")
         return _access_token
+
 
 
 def send_customer_service_msg(openid: str, content: str):
