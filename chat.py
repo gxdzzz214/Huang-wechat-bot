@@ -11,6 +11,17 @@ from google.genai import types
 from config import GEMINI_API_KEY, GEMINI_MODEL, MAX_HISTORY_MESSAGES
 from persona import PETEZZ_SYSTEM_PROMPT
 
+# 公众号版附加指令：禁用多段分隔，只输出单条消息
+WECHAT_OFFICIAL_ADDON = """
+
+【公众号模式专属规则】
+你现在运行在微信公众号环境中，平台限制每次只能发送一条消息。
+- 绝对禁止使用 ||| 分隔符
+- 无论想说几句话，必须合并成一条消息发出
+- 可以用空格或省略来自然连接（例如："对啊 不知道啊"）
+- 保持原有的简短风格，绝对不要因为合并就变长
+"""
+
 logger = logging.getLogger("WechatBot")
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -43,7 +54,7 @@ def ask_gemini(openid: str, user_message: str) -> str:
         chat = gemini_client.chats.create(
             model=GEMINI_MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=PETEZZ_SYSTEM_PROMPT,
+                system_instruction=PETEZZ_SYSTEM_PROMPT + WECHAT_OFFICIAL_ADDON,
                 max_output_tokens=1024,
                 temperature=0.8,
                 safety_settings=[
