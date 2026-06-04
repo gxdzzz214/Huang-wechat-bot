@@ -1,11 +1,10 @@
 # =============================================================================
-# chat.py —— Gemini API 调用模块（公众号版，快速联网搜索）
+# chat.py —— Gemini API 调用模块（公众号版，Google News RSS 联网搜索）
 # =============================================================================
 from collections import defaultdict
 import logging
 import urllib.request
 import urllib.parse
-import json
 import re
 
 from google import genai
@@ -63,49 +62,45 @@ def needs_search(text: str) -> bool:
 
 
 def quick_search(query: str) -> str:
-    """用 DuckDuckGo Instant Answer API + HTML 搜索获取结果摘要"""
+    """用 Google News RSS 获取最新新闻摘要（公开接口，无需 API key）"""
     try:
-        # 优先用 Instant Answer API（无需 key，极快）
         q = urllib.parse.quote(query)
-        url = f"https://api.duckduckgo.com/?q={q}&format=json&no_html=1&skip_disambig=1"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            data = json.loads(resp.read().decode())
+        url = (
+            f"https://news.google.com/rss/search"
+            f"?q={q}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+        )
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Bot/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore")
+
+        # 提取新闻标题
+        titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", raw)
+        if not titles:
+            titles = re.findall(r"<title>(.*?)</title>", raw)
+        titles = [t for t in titles if t and "Google" not in t][:5]
+
+        # 提取发布时间（pubDate）
+        dates = re.findall(r"<pubDate>(.*?)</pubDate>", raw)[:5]
 
         snippets = []
-        if data.get("AbstractText"):
-            snippets.append(data["AbstractText"])
-        for r in data.get("RelatedTopics", [])[:5]:
-            if isinstance(r, dict) and r.get("Text"):
-                snippets.append(r["Text"])
+        for i, title in enumerate(titles):
+            line = title.strip()
+            if i < len(dates):
+                line += f"（{dates[i].strip()[:16]}）"
+            snippets.append(line)
 
-        if snippets:
-            result = "\n".join(snippets)[:800]
-            logger.info(f"DDG Instant Answer ({len(result)} chars)")
-            return result
-
-        # 如果 Instant Answer 没内容，用搜索结果摘要
-        url2 = f"https://api.duckduckgo.com/?q={q}&format=json&no_html=1"
-        req2 = urllib.request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req2, timeout=2) as resp2:
-            data2 = json.loads(resp2.read().decode())
-
-        snippets2 = []
-        for r in data2.get("Results", [])[:3]:
-            text = r.get("Text", "")
-            if text:
-                snippets2.append(text)
-
-        if snippets2:
-            result2 = "\n".join(snippets2)[:800]
-            logger.info(f"DDG Results ({len(result2)} chars)")
-            return result2
-
-        logger.info("DDG 返回空结果")
-        return ""
+        result = "\n".join(snippets)
+        if result:
+            logger.info(f"Google News 搜索成功，{len(titles)} 条结果")
+        else:
+            logger.info("Google News 无结果")
+        return result
 
     except Exception as e:
-        logger.warning(f"DDG 搜索失败: {e}")
+        logger.warning(f"Google News 搜索失败: {e}")
         return ""
 
 
